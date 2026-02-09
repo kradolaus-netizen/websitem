@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="tr" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kuralsız Yazım - Hibrit Sürüm</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* CORE */
+    body { font-family: 'Nunito', sans-serif; overflow: hidden; user-select: none; }
+    
+    /* ANIMATIONS */
+    @keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+    
+    /* UI COMPONENTS - Masaüstü ve Mobil Uyumlu */
+    .glass-panel { 
+        background: rgba(255, 255, 255, 0.1); 
+        backdrop-filter: blur(20px); 
+        border: 1px solid rgba(255, 255, 255, 0.2); 
+        cursor: default;
+    }
+    
+    /* BUTON STİLLERİ - Kritik Düzeltme: cursor-pointer */
+    button { cursor: pointer !important; }
+    
+    .btn-option { 
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+      position: relative; 
+      cursor: pointer;
+    }
+    
+    /* Sadece Masaüstünde Hover Efekti (Telefonda takılmayı önler) */
+    @media (hover: hover) {
+        .btn-option:hover { transform: scale(1.02); background: rgba(255,255,255,0.2); }
+        .hover-scale:hover { transform: scale(1.05); }
+    }
+    
+    .btn-option:active { transform: scale(0.96); }
+    
+    /* FEEDBACK STATES */
+    .state-correct { background: #10b981 !important; color: white !important; border-color: transparent !important; }
+    .state-wrong { background: #ef4444 !important; color: white !important; border-color: transparent !important; opacity: 0.9; }
+    
+    .strike-through { text-decoration: line-through; text-decoration-thickness: 3px; opacity: 0.7; }
+    .icon-feedback { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,0.2); margin-left: 8px; font-size: 0.8rem; }
+
+    /* THEMES */
+    .theme-transition { transition: background 1s ease, color 0.3s ease; }
+    .bg-aurora-purple { background: linear-gradient(-45deg, #6366f1, #a855f7, #ec4899); background-size: 400% 400%; animation: gradientMove 20s infinite; color: white; }
+    .bg-aurora-green { background: linear-gradient(-45deg, #10b981, #3b82f6, #06b6d4); background-size: 400% 400%; animation: gradientMove 20s infinite; color: white; }
+    .bg-paper { background: #fdf6e3 url("https://www.transparenttextures.com/patterns/old-map.png"); color: #451a03; }
+    .bg-paper .glass-panel { background: rgba(255, 251, 235, 0.95); border-color: #b45309; box-shadow: 0 10px 30px rgba(69, 26, 3, 0.1); }
+  </style>
+</head>
+<body id="app-body" class="h-full w-full bg-aurora-purple theme-transition">
+
+  <div id="audio-container" hidden>
+    <audio id="sfx-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+    <audio id="sfx-wrong" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+    <audio id="sfx-level" src="https://assets.mixkit.co/active_storage/sfx/2017/2017-preview.mp3"></audio>
+    <audio id="sfx-fail" src="https://assets.mixkit.co/active_storage/sfx/2030/2030-preview.mp3"></audio>
+  </div>
+
+  <div id="app" class="h-full flex flex-col relative max-w-4xl mx-auto">
+    
+    <div id="overlay-level" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl hidden">
+      <h2 id="overlay-title" class="text-5xl md:text-6xl font-black text-white mb-2 animate-[popIn_0.5s_ease]">AŞAMA 1</h2>
+      <p id="overlay-sub" class="text-indigo-400 font-bold tracking-widest uppercase">Hazırlan...</p>
+    </div>
+
+    <section id="view-landing" class="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-lg">
+      <header class="w-full flex justify-between items-center absolute top-6 px-6">
+        <div class="flex gap-2">
+           <div class="bg-white/10 px-3 py-1 rounded-lg text-white text-xs font-bold border border-white/20 flex items-center gap-1 cursor-default">
+             💎 <span id="stat-score">0</span>
+           </div>
+           <div class="bg-white/10 px-3 py-1 rounded-lg text-white text-xs font-bold border border-white/20 flex items-center gap-1 cursor-default">
+             🔥 <span id="stat-streak">0</span>
+           </div>
+        </div>
+        <button onclick="window.App.UI.toggleShop(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-full font-bold shadow-lg text-sm hover-scale transition-transform cursor-pointer">
+          🛒 Dükkan
+        </button>
+      </header>
+
+      <div class="text-center mb-10">
+        <h1 class="text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter italic drop-shadow-2xl cursor-default">KURALSIZ</h1>
+        <p class="text-white/70 font-semibold text-lg cursor-default">Doğruyu bul, yanlışı çiz. ✍️</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-lg">
+        <button onclick="window.App.Engine.start('normal')" class="glass-panel p-8 rounded-3xl text-left hover:bg-white/20 transition-all group text-white cursor-pointer hover-scale">
+          <span class="text-4xl mb-3 block group-hover:scale-110 transition-transform">🧘‍♂️</span>
+          <h3 class="text-2xl font-bold">Yolculuk</h3>
+          <p class="text-sm opacity-70 mt-1">20 Soru • Hata Telafisi • Boss</p>
+        </button>
+        <button onclick="window.App.Engine.start('timer')" class="glass-panel p-8 rounded-3xl text-left hover:bg-white/20 transition-all group text-white relative overflow-hidden cursor-pointer hover-scale">
+          <div class="absolute top-0 right-0 bg-yellow-500 text-black text-[10px] font-bold px-2 py-1 rounded-bl-lg">POPÜLER</div>
+          <span class="text-4xl mb-3 block group-hover:rotate-12 transition-transform">⚡</span>
+          <h3 class="text-2xl font-bold">Yıldırım</h3>
+          <p class="text-sm opacity-70 mt-1">30 Saniye • Seri Bonusu</p>
+        </button>
+      </div>
+      
+      <p class="absolute bottom-6 text-white/30 text-xs font-mono hidden md:block">Klavye: 1-2-3-4 ve Boşluk Tuşu</p>
+    </section>
+
+    <header id="view-header" class="relative z-10 px-6 pt-10 pb-4 flex items-center justify-between hidden">
+      <div class="flex items-center gap-3">
+        <button onclick="window.App.Engine.quit()" class="bg-red-500/20 text-red-100 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-500 transition-colors cursor-pointer" aria-label="Çıkış">
+          ÇIK
+        </button>
+        <div class="flex flex-col cursor-default">
+          <span id="hud-mode" class="text-[10px] font-bold uppercase tracking-widest opacity-70">AŞAMA 1</span>
+          <div id="hud-lives" class="flex gap-1 text-red-400 text-sm h-4"></div>
+        </div>
+      </div>
+      <div class="flex gap-3 items-center cursor-default">
+        <div id="hud-timer" class="hidden bg-red-600 text-white px-3 py-1 rounded-lg font-mono font-bold shadow-lg text-sm">30s</div>
+        <div class="glass-panel px-4 py-1 rounded-lg font-black border border-white/20 text-lg">
+          <span id="hud-score">0</span>
+        </div>
+      </div>
+    </header>
+
+    <main id="view-game" class="relative z-10 flex-1 px-4 flex flex-col justify-center max-w-2xl mx-auto w-full hidden">
+      <div class="glass-panel rounded-[2.5rem] p-8 shadow-2xl relative">
+        <div id="feedback-bar" class="absolute -top-5 left-1/2 -translate-x-1/2 bg-white text-indigo-900 px-6 py-2 rounded-full font-black shadow-lg scale-0 transition-transform whitespace-nowrap z-20 text-sm pointer-events-none">
+          HARİKA!
+        </div>
+
+        <p id="question-text" class="text-2xl md:text-4xl font-black text-center leading-tight min-h-[5rem] flex items-center justify-center cursor-default">
+          Yükleniyor...
+        </p>
+
+        <div id="options-grid" class="grid grid-cols-1 gap-3 mt-4">
+          </div>
+
+        <button id="btn-next" onclick="window.App.Engine.next()" class="w-full py-4 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg hidden transition-all hover:scale-[1.02] cursor-pointer">
+          DEVAM ET (Space)
+        </button>
+      </div>
+    </main>
+
+    <section id="view-summary" class="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/95 backdrop-blur-xl text-center hidden text-white">
+      <div class="text-6xl mb-4 animate-[float_3s_infinite]">🏆</div>
+      <h2 id="sum-title" class="text-4xl font-black mb-2">Harika İş!</h2>
+      <p id="sum-msg" class="text-indigo-300 mb-8 italic text-sm">Performans Özeti</p>
+      
+      <div class="flex gap-4 mb-8 w-full max-w-sm">
+        <div class="flex-1 bg-white/10 p-4 rounded-2xl border border-white/10">
+          <div class="text-[10px] uppercase opacity-50">Puan</div>
+          <div id="sum-score" class="text-3xl font-black">0</div>
+        </div>
+        <div class="flex-1 bg-white/10 p-4 rounded-2xl border border-white/10">
+          <div class="text-[10px] uppercase opacity-50">Hatalar</div>
+          <div id="sum-mistakes" class="text-3xl font-black text-red-400">0</div>
+        </div>
+      </div>
+
+      <button onclick="location.reload()" class="w-full max-w-xs py-4 bg-white text-indigo-900 font-black rounded-xl hover:scale-105 transition-transform cursor-pointer shadow-xl">
+        ANA MENÜYE DÖN
+      </button>
+    </section>
+
+    <div id="modal-shop" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
+      <div class="bg-[#1e1b4b] w-full max-w-md rounded-3xl border border-white/10 p-6 max-h-[85vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-black text-white">Market</h2>
+          <button onclick="window.App.UI.toggleShop(false)" class="text-white/50 hover:text-white text-2xl p-2 cursor-pointer">✕</button>
+        </div>
+        
+        <h3 class="text-xs font-bold text-indigo-300 uppercase mb-3">Güçlendirmeler</h3>
+        <div id="shop-buffs" class="space-y-3 mb-6"></div>
+
+        <h3 class="text-xs font-bold text-indigo-300 uppercase mb-3">Temalar</h3>
+        <div id="shop-themes" class="grid grid-cols-2 gap-3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /** --- MODULE: DATA --- */
+    const Data = {
+      words: {
+        easy: [{id:1,c:'yalnız',w:'yanlız'},{id:2,c:'yanlış',w:'yalnış'},{id:3,c:'herkes',w:'herkez'},{id:4,c:'sürpriz',w:'süpriz'},{id:5,c:'tıraş',w:'traş'},{id:6,c:'makine',w:'makina'},{id:7,c:'meyve',w:'meyva'},{id:8,c:'grup',w:'gurup'},{id:9,c:'direkt',w:'direk'},{id:10,c:'poğaça',w:'pohaça'},{id:13,c:'fasulye',w:'fasülye'},{id:14,c:'kavanoz',w:'gavanoz'},{id:17,c:'idman',w:'itman'},{id:18,c:'eşofman',w:'eşortman'},{id:19,c:'etüt',w:'etüd'},{id:20,c:'lavabo',w:'lavobo'}],
+        medium: [{id:21,c:'inisiyatif',w:'insiyatif'},{id:22,c:'orijinal',w:'orjinal'},{id:23,c:'entelektüel',w:'entellektüel'},{id:24,c:'doküman',w:'döküman'},{id:25,c:'antrenman',w:'antreman'},{id:26,c:'unvan',w:'ünvan'},{id:27,c:'vejetaryen',w:'vejeteryan'},{id:28,c:'restoran',w:'restorant'},{id:29,c:'şoför',w:'şöför'},{id:30,c:'laboratuvar',w:'labaratuar'},{id:31,c:'egzoz',w:'egsos'},{id:32,c:'rönesans',w:'rönasans'},{id:34,c:'şefkat',w:'şevkat'},{id:35,c:'sarımsak',w:'sarmısak'},{id:36,c:'asfalt',w:'asvalt'},{id:38,c:'tetanos',w:'tetanoz'},{id:40,c:'tespih',w:'tesbih'},{id:43,c:'provokatör',w:'provakatör'}],
+        hard: [{id:45,c:'karnabahar',w:'karnıbahar'},{id:46,c:'gardırop',w:'gardrop'},{id:48,c:'ana dil',w:'anadil'},{id:49,c:'anayasa',w:'ana yasa'},{id:52,c:'özbeöz',w:'öz be öz'},{id:55,c:'sıra dışı',w:'sıradışı'},{id:56,c:'yani sıra',w:'yanısıra'},{id:57,c:'müsvedde',w:'müsvette'},{id:63,c:'zatürre',w:'zatüre'},{id:64,c:'rögar',w:'logar'},{id:65,c:'tazyik',w:'tazzik'},{id:66,c:'bilinçaltı',w:'bilinç altı'},{id:69,c:'önsezi',w:'ön sezi'},{id:70,c:'dil bilimi',w:'dilbilimi'},{id:71,c:'söz konusu',w:'sözkonusu'},{id:73,c:'birdenbire',w:'birden bire'},{id:74,c:'örtbas',w:'ört bas'},{id:76,c:'hasbihâl',w:'hasbihal'},{id:80,c:'erozyon',w:'erazyon'},{id:91,c:'komiser',w:'komser'},{id:94,c:'özdeyiş',w:'öz deyiş'},{id:126,c:'defetmek',w:'def etmek'},{id:134,c:'zabıt kâtibi',w:'zabıt katibi'}]
+      },
+      shop: {
+        themes: [
+          {id:'bg-aurora-purple', name:'Klasik Mor', cost:0, desc:'Varsayılan'},
+          {id:'bg-aurora-green', name:'Doğa Yeşili', cost:500, desc:'Ferahlatıcı'},
+          {id:'bg-paper', name:'Antik Kağıt', cost:2000, desc:'Akademik His'}
+        ],
+        buffs: [
+          {id:'life', name:'❤️ +1 Can (Boss)', cost: 100, desc:'Boss savaşında tolerans.'},
+          {id:'time', name:'⏱️ +10sn (Timer)', cost: 150, desc:'Yıldırım modunda ek süre.'}
+        ]
+      }
+    };
+
+    const ALL_WORDS = [...Data.words.easy, ...Data.words.medium, ...Data.words.hard];
+
+    /** --- STATE LAYER --- */
+    const State = {
+      data: {
+        totalScore: 0,
+        maxStreak: 0,
+        equippedTheme: 'bg-aurora-purple',
+        failedWords: {}, 
+        inventory: { life: 0, time: 0 },
+        unlocks: ['bg-aurora-purple'] 
+      },
+      load() {
+        const saved = localStorage.getItem('ky_save_v8');
+        if(saved) this.data = {...this.data, ...JSON.parse(saved)};
+      },
+      save() {
+        localStorage.setItem('ky_save_v8', JSON.stringify(this.data));
+      },
+      addMistake(wordId) {
+        this.data.failedWords[wordId] = (this.data.failedWords[wordId] || 0) + 1;
+        this.save();
+      }
+    };
+
+    /** --- UI LAYER --- */
+    const UI = {
+      $: (id) => document.getElementById(id),
+      
+      init() {
+        State.load();
+        this.applyTheme(State.data.equippedTheme);
+        this.updateStats();
+      },
+
+      showScreen(id) {
+        ['view-landing', 'view-header', 'view-game', 'view-summary'].forEach(s => this.$(s).classList.add('hidden'));
+        this.$(id).classList.remove('hidden');
+      },
+
+      applyTheme(theme) {
+        document.body.className = document.body.className.replace(/bg-[\w-]+/g, theme);
+        const isPaper = theme.includes('paper');
+        document.body.style.color = isPaper ? '#451a03' : 'white';
+      },
+
+      updateStats() {
+        this.$('stat-score').textContent = State.data.totalScore;
+        this.$('stat-streak').textContent = State.data.maxStreak;
+        if(this.$('shop-balance')) this.$('shop-balance').textContent = State.data.totalScore;
+        this.$('stat-inv').textContent = (State.data.inventory.life || 0) + (State.data.inventory.time || 0);
+      },
+
+      showFeedback(msg, type) {
+        const fb = this.$('feedback-bar');
+        fb.textContent = msg;
+        fb.className = `absolute -top-5 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full font-black shadow-lg scale-100 transition-transform whitespace-nowrap z-20 text-sm ${type === 'good' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
+        setTimeout(() => fb.classList.add('scale-0'), 1200);
+      },
+
+      toggleShop(show) {
+        const modal = this.$('modal-shop');
+        if(show) { this.renderShop(); modal.classList.remove('hidden'); } else modal.classList.add('hidden');
+      },
+
+      renderShop() {
+        // Buffs
+        this.$('shop-buffs').innerHTML = Data.shop.buffs.map(b => `
+          <div class="flex justify-between items-center p-3 bg-white/5 rounded-2xl border border-white/10">
+            <div class="text-white">
+              <div class="font-bold text-sm">${b.name}</div>
+              <div class="text-[10px] opacity-60">${b.desc}</div>
+              <div class="text-xs text-yellow-400 mt-1">Stok: ${State.data.inventory[b.id] || 0}</div>
+            </div>
+            <button onclick="window.App.Engine.buyItem('buff', '${b.id}', ${b.cost})" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded-lg text-white text-xs font-bold ${State.data.totalScore < b.cost ? 'opacity-50 cursor-not-allowed' : ''}">
+              ${b.cost} 💎 AL
+            </button>
+          </div>
+        `).join('');
+
+        // Themes
+        this.$('shop-themes').innerHTML = Data.shop.themes.map(t => {
+            const owned = State.data.unlocks.includes(t.id);
+            const equipped = State.data.equippedTheme === t.id;
+            return `
+            <div class="p-3 bg-white/5 rounded-2xl border ${equipped ? 'border-green-500 bg-green-500/10' : 'border-white/10'} text-center text-white cursor-default">
+              <div class="h-10 w-full mb-2 rounded-lg ${t.id} border border-white/20"></div>
+              <p class="font-bold text-xs mb-1">${t.name}</p>
+              <button onclick="window.App.Engine.buyItem('theme', '${t.id}', ${t.cost})" class="w-full py-1.5 ${equipped ? 'bg-green-500' : (owned ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gray-700 hover:bg-gray-600')} rounded-lg font-bold text-[10px] uppercase cursor-pointer transition-colors">
+                ${equipped ? 'AKTİF' : (owned ? 'SEÇ' : `${t.cost} 💎`)}
+              </button>
+            </div>`;
+        }).join('');
+      },
+
+      renderHearts(count) {
+        this.$('hud-lives').innerHTML = '❤️'.repeat(count);
+      }
+    };
+
+    /** --- ENGINE LAYER --- */
+    const Engine = {
+      state: {
+        mode: null, subStage: 'normal', score: 0, streak: 0, lives: 3, timer: 30, interval: null,
+        pool: [], failed: [], currentQ: 0, recent: [], ended: false, usedWordIds: new Set()
+      },
+
+      sounds: {
+        correct: document.getElementById('sfx-correct'),
+        wrong: document.getElementById('sfx-wrong'),
+        level: document.getElementById('sfx-level'),
+        fail: document.getElementById('sfx-fail')
+      },
+
+      play(key) { 
+        if(this.sounds[key]) { this.sounds[key].currentTime = 0; this.sounds[key].play().catch(() => {}); } 
+      },
+
+      buyItem(type, id, cost) {
+        if (type !== 'buff' && State.data.unlocks.includes(id)) {
+            if(type === 'theme') { State.data.equippedTheme = id; UI.applyTheme(id); }
+            State.save();
+            UI.renderShop();
+            return;
+        }
+
+        if (State.data.totalScore >= cost) {
+            State.data.totalScore -= cost;
+            
+            if (type === 'buff') {
+                State.data.inventory[id] = (State.data.inventory[id] || 0) + 1;
+            } else {
+                State.data.unlocks.push(id);
+                if(type === 'theme') { State.data.equippedTheme = id; UI.applyTheme(id); }
+            }
+            State.save();
+            UI.updateStats();
+            UI.renderShop();
+        }
+      },
+
+      start(mode) {
+        this.state.ended = false;
+        this.state.mode = mode;
+        this.state.score = 0;
+        this.state.streak = 0;
+        this.state.failed = [];
+        this.state.pool = this.createPool(mode);
+        this.state.currentQ = 0;
+
+        UI.showScreen('view-game');
+        UI.$('view-header').classList.remove('hidden');
+        
+        if (mode === 'timer') {
+          const extraTime = State.data.inventory.time > 0 ? 10 : 0;
+          if(extraTime > 0) {
+             State.data.inventory.time--;
+             State.save();
+             UI.showFeedback("⏱️ Boost Aktif!", "good");
+          }
+          this.state.timer = 30 + extraTime;
+          UI.$('hud-timer').classList.remove('hidden');
+          this.startTimer();
+        } else {
+          UI.$('hud-timer').classList.add('hidden');
+          this.initLevel(0);
+        }
+        UI.updateStats(); // Update inv display
+      },
+
+      createPool(mode) {
+        return mode === 'timer' ? ALL_WORDS : Data.words.easy;
+      },
+
+      getQuestion() {
+        const pool = this.state.pool;
+        if(pool.length === 0) return null;
+
+        if (this.state.mode === 'timer') {
+            const weightedPool = [];
+            const sample = pool.sort(() => 0.5 - Math.random()).slice(0, 15);
+            sample.forEach(word => {
+                const failCount = State.data.failedWords[word.id] || 0;
+                const weight = failCount > 0 ? 4 : 1; 
+                for(let i=0; i<weight; i++) weightedPool.push(word);
+            });
+            
+            let candidate;
+            let attempts = 0;
+            do {
+                candidate = weightedPool[Math.floor(Math.random() * weightedPool.length)];
+                attempts++;
+            } while (this.state.recent.includes(candidate.id) && attempts < 10);
+            
+            this.state.recent.push(candidate.id);
+            if(this.state.recent.length > 5) this.state.recent.shift();
+            return candidate;
+        } else {
+            return pool[this.state.currentQ % pool.length];
+        }
+      },
+
+      initLevel(levelIndex) {
+        this.state.subStage = 'normal';
+        this.state.currentLevel = levelIndex;
+        this.state.pool = Data.words[['easy','medium','hard'][levelIndex]].sort(() => Math.random() - 0.5).slice(0, 20);
+        this.state.currentQ = 0;
+        this.state.failed = []; 
+        
+        const overlay = UI.$('overlay-level');
+        UI.$('overlay-title').textContent = ["AŞAMA 1", "AŞAMA 2", "AŞAMA 3"][levelIndex];
+        UI.$('overlay-sub').textContent = "Yolculuk Başlıyor";
+        
+        this.play('level');
+        overlay.classList.remove('hidden');
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          this.nextQuestion();
+        }, 1500);
+        
+        UI.$('hud-mode').textContent = UI.$('overlay-title').textContent;
+        UI.renderHearts(0);
+      },
+
+      initBoss() {
+        this.state.subStage = 'boss';
+        
+        const extraLife = State.data.inventory.life > 0 ? 1 : 0;
+        if(extraLife > 0) { State.data.inventory.life--; State.save(); }
+        this.state.lives = 3 + extraLife;
+        
+        const keys = ['easy', 'medium', 'hard'];
+        this.state.pool = Data.words[keys[this.state.currentLevel]].sort(()=>0.5-Math.random()).slice(0,5);
+        this.state.currentQ = 0;
+        
+        UI.renderHearts(this.state.lives);
+        UI.updateStats(); // Inv update
+        
+        const overlay = UI.$('overlay-level');
+        UI.$('overlay-title').textContent = "BOSS";
+        UI.$('overlay-sub').textContent = extraLife > 0 ? "Bonus Can Aktif!" : "Hata Yapma";
+        
+        overlay.classList.remove('hidden');
+        this.play('level');
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          this.state.usedWordIds = new Set();
+          this.nextQuestion();
+        }, 1500);
+      },
+
+      initReview() {
+        this.state.subStage = 'review';
+        this.state.pool = [...this.state.failed];
+        this.state.failed = [];
+        this.state.currentQ = 0;
+        
+        const overlay = UI.$('overlay-level');
+        UI.$('overlay-title').textContent = "TELAFİ";
+        UI.$('overlay-sub').textContent = "Hatalarını Düzelt";
+        overlay.classList.remove('hidden');
+        setTimeout(() => { overlay.classList.add('hidden'); this.nextQuestion(); }, 1500);
+      },
+
+      nextQuestion() {
+        if (this.state.ended) return;
+
+        if (this.state.mode === 'normal') {
+          if (this.state.subStage === 'normal' && this.state.currentQ >= 20) {
+            this.state.failed.length > 0 ? this.initReview() : this.initBoss();
+            return;
+          }
+          if (this.state.subStage === 'review' && this.state.currentQ >= this.state.pool.length) {
+             this.initBoss(); return;
+          }
+          if (this.state.subStage === 'boss' && this.state.currentQ >= 5) {
+             this.state.currentLevel < 2 ? this.initLevel(this.state.currentLevel + 1) : this.endGame("ZAFER!");
+             return;
+          }
+        }
+
+        UI.$('btn-next').classList.add('hidden');
+        
+        const word = this.getQuestion();
+        if(!word) { this.endGame("HAVUZ BİTTİ"); return; }
+        
+        this.currentWord = word;
+        this.targetCorrect = Math.random() > 0.5;
+        
+        UI.$('question-text').innerHTML = this.targetCorrect 
+          ? `Hangisi <span class="text-green-500 underline decoration-4 underline-offset-4">DOĞRU</span>?`
+          : `Hangisi <span class="text-red-500 underline decoration-4 underline-offset-4">YANLIŞ</span>?`;
+
+        const allWords = ALL_WORDS;
+        let distractors = allWords.filter(w => w.id !== word.id).sort(()=>0.5-Math.random()).slice(0,3);
+        
+        let options = [];
+        if (this.targetCorrect) {
+          options = [{ txt: word.c, isCorrect: true, meta: word }, ...distractors.map(d => ({ txt: d.w, isCorrect: false, meta: d }))];
+        } else {
+          options = [{ txt: word.w, isCorrect: true, meta: word }, ...distractors.map(d => ({ txt: d.c, isCorrect: false, meta: d }))];
+        }
+        
+        const grid = UI.$('options-grid');
+        grid.innerHTML = '';
+        options.sort(() => 0.5 - Math.random()).forEach((opt, idx) => {
+          const btn = document.createElement('button');
+          btn.className = "btn-option glass-panel p-4 rounded-xl text-lg font-bold text-indigo-900 dark:text-white flex justify-between items-center w-full focus-ring hover:bg-white/20";
+          btn.innerHTML = `<span class="pointer-events-none">${opt.txt}</span>`;
+          btn.onclick = () => this.handleChoice(opt, btn, options);
+          grid.appendChild(btn);
+        });
+      },
+
+      handleChoice(choice, btn, allOptions) {
+        if (!UI.$('btn-next').classList.contains('hidden')) return; 
+
+        const isSuccess = choice.isCorrect; 
+
+        if (isSuccess) {
+          this.state.score += 10;
+          this.state.streak++;
+          this.play('correct');
+          btn.classList.add('state-correct');
+          btn.innerHTML += `<span class="icon-feedback">✔</span>`;
+          UI.showFeedback(this.state.streak % 5 === 0 ? 'SERİ BONUSU!' : 'HARİKA!', 'good');
+          if (this.state.mode === 'timer') {
+            this.state.timer += 1;
+            UI.$('hud-timer').textContent = Math.ceil(this.state.timer) + 's';
+          }
+        } else {
+          this.state.streak = 0;
+          this.play('wrong');
+          btn.classList.add('state-wrong', 'animate-[shake_0.4s]');
+          btn.innerHTML += `<span class="icon-feedback">✖</span>`;
+          UI.showFeedback('DİKKAT!', 'bad');
+          
+          if (this.state.subStage === 'normal') this.state.failed.push(this.currentWord);
+          State.addMistake(this.currentWord.id);
+          
+          if (this.state.subStage === 'boss') {
+            this.state.lives--;
+            UI.renderHearts(this.state.lives);
+            if (this.state.lives <= 0) {
+              this.play('fail');
+              setTimeout(() => this.initBoss(), 1500); 
+              return;
+            }
+          }
+        }
+
+        Array.from(UI.$('options-grid').children).forEach((b, i) => {
+          const opt = allOptions[i];
+          if (opt.txt === opt.meta.w) {
+             b.innerHTML = `<span class="strike-through">${opt.txt}</span> <span class="ml-2 text-green-400 font-black">→ ${opt.meta.c}</span>`;
+          }
+        });
+
+        UI.$('hud-score').textContent = this.state.score;
+        State.save();
+
+        if (this.state.mode === 'timer') {
+          setTimeout(() => this.nextQuestion(), 800);
+        } else {
+          UI.$('btn-next').classList.remove('hidden');
+          UI.$('btn-next').focus(); // Klavye odaklaması
+        }
+      },
+
+      next() { this.nextQuestion(); },
+
+      startTimer() {
+        if(this.state.interval) clearInterval(this.state.interval);
+        this.state.interval = setInterval(() => {
+          this.state.timer -= 1;
+          UI.$('hud-timer').textContent = Math.ceil(this.state.timer) + 's';
+          if (this.state.timer <= 0) this.endGame("SÜRE DOLDU");
+        }, 1000);
+        this.nextQuestion();
+      },
+
+      quit() { this.endGame("YARIDA KESİLDİ"); },
+
+      endGame(reason) {
+        if (this.state.ended) return;
+        this.state.ended = true;
+        
+        clearInterval(this.state.interval);
+        State.data.totalScore += this.state.score;
+        if(this.state.streak > State.data.maxStreak) State.data.maxStreak = this.state.streak;
+        State.save();
+
+        UI.showScreen('view-summary');
+        UI.$('sum-title').textContent = reason;
+        UI.$('sum-score').textContent = this.state.score;
+        UI.$('sum-mistakes').textContent = this.state.failed.length;
+        UI.updateStats();
+      }
+    };
+
+    // --- KEYBOARD & INIT ---
+    // window.App ataması ile inline HTML eventleri garanti altına alınır
+    window.App = { UI, Data, Engine, State };
+
+    document.addEventListener('keydown', (e) => {
+      if (!UI.$('view-game').classList.contains('hidden')) {
+        if (['1','2','3','4'].includes(e.key)) {
+            const btns = UI.$('options-grid').children;
+            if (btns[e.key-1]) btns[e.key-1].click();
+        }
+        if ((e.key === ' ' || e.key === 'Enter') && !UI.$('btn-next').classList.contains('hidden')) {
+            Engine.next();
+        }
+      }
+    });
+
+    window.onload = () => UI.init();
+  </script>
+</body>
+</html>
